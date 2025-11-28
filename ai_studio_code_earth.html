@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Command Pro - Sci-Fi Globe View</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-teal: #4E9393; 
+            --primary-glow: #6affff;
+            --primary-dim: rgba(78, 147, 147, 0.15);
+            --bg-body: #050808;
+            --bg-card: rgba(12, 16, 16, 0.9);
+            --text-white: #e0e0e0;
+            --text-muted: #6b7d7d;
+            --accent-warn: #d9775f;
+            --accent-good: #4E9393;
+            --accent-info: #4facfe;
+            --accent-gray: #777777;
+            --font-din: 'Barlow', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--primary-teal) #000; }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-white);
+            font-family: var(--font-din);
+            font-weight: 400;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at 50% 50%, #151e1e 0%, #020303 90%);
+        }
+
+        /* --- Header --- */
+        header {
+            height: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px;
+            border-bottom: 1px solid var(--primary-dim); background: rgba(5, 8, 8, 0.95); z-index: 20; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+        .brand { font-family: var(--font-din); font-size: 20px; letter-spacing: 0.5px; text-transform: capitalize; display: flex; align-items: center; gap: 12px; color: #fff; font-weight: 700; }
+        .brand i { color: var(--primary-teal); font-size: 18px; filter: drop-shadow(0 0 5px var(--primary-teal)); }
+        .system-meta { font-family: var(--font-din); font-weight: 400; font-size: 14px; color: var(--primary-teal); display: flex; align-items: center; gap: 20px; background: rgba(78, 147, 147, 0.1); padding: 5px 15px; border-radius: 4px; border: 1px solid var(--primary-dim); }
+
+        /* --- KPI Bar --- */
+        .kpi-bar { height: 90px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 12px 20px 0 20px; z-index: 10; }
+        .kpi-card { background: linear-gradient(180deg, rgba(20,28,28,0.8) 0%, rgba(10,14,14,0.6) 100%); border: 1px solid var(--primary-dim); border-radius: 12px; display: flex; flex-direction: column; justify-content: center; padding: 0 15px; position: relative; transition: 0.3s; overflow: hidden; }
+        .kpi-card::before { content: ''; position: absolute; left: 0; top: 10%; height: 80%; width: 2px; background: var(--primary-teal); opacity: 0.5; }
+        .kpi-bg-icon { position: absolute; right: 10px; bottom: 5px; font-size: 40px; color: var(--primary-teal); opacity: 0.1; transform: rotate(-10deg); pointer-events: none; }
+        .kpi-top { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1;}
+        .kpi-value { font-family: var(--font-din); font-weight: 700; font-size: 22px; color: #fff; line-height: 1; }
+        .kpi-trend { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 3px; }
+        .trend-up { color: var(--accent-good); }
+        .trend-down { color: var(--accent-warn); }
+        .kpi-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-top: 5px; letter-spacing: 0.5px; position: relative; z-index: 1; font-weight: 400; }
+        
+        .main-content { flex: 1; padding: 12px 20px 20px 20px; display: grid; grid-template-columns: 24% 52% 24%; gap: 12px; min-height: 0; }
+        .col { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+        .col.middle-col { gap: 0; }
+
+        .card { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); position: relative; display: flex; flex-direction: column; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 4px; }
+        .card::after { content: ''; position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-top: 2px solid var(--primary-teal); border-right: 2px solid var(--primary-teal); }
+        .card::before { content: ''; position: absolute; bottom: 0; left: 0; width: 8px; height: 8px; border-bottom: 2px solid var(--primary-teal); border-left: 2px solid var(--primary-teal); }
+        .card-header { font-size: 15px; color: var(--primary-teal); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+
+        .chart-tabs { display: flex; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 2px; gap: 2px; }
+        .tab-btn { font-family: var(--font-din); font-size: 11px; padding: 2px 10px; color: var(--text-muted); cursor: pointer; border-radius: 2px; transition: 0.2s; text-transform: uppercase; }
+        .tab-btn.active { background: var(--primary-teal); color: #000; font-weight: 700; }
+
+        .pie-layout { display: flex; height: 100%; align-items: center; }
+        .pie-chart { flex: 1; height: 100%; min-height: 150px; }
+        .pie-legend { width: 40%; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+        .legend-item { display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 2px; }
+        .legend-dot { width: 8px; height: 8px; display: inline-block; margin-right: 5px; border-radius: 2px; }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .mini-stat { background: rgba(255,255,255,0.03); padding: 8px; border-radius: 4px; text-align: center; }
+        .mini-val { font-family: var(--font-din); font-weight: 700; font-size: 20px; color: #fff; }
+        .mini-lbl { font-size: 11px; color: var(--text-muted); }
+
+        .energy-bars { display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: space-evenly; }
+        .eb-row { font-size: 12px; }
+        .eb-header { display: flex; justify-content: space-between; margin-bottom: 3px; font-weight: 400; }
+        .eb-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .eb-fill { height: 100%; }
+
+        .alert-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 5px; flex: 1; }
+        .alert-item { background: rgba(255,255,255,0.02); padding: 8px; border-left: 2px solid transparent; display: flex; gap: 10px; align-items: center; }
+        .alert-item.crit { border-color: var(--accent-warn); background: linear-gradient(90deg, rgba(217,119,95,0.1), transparent); }
+        .alert-item.info { border-color: var(--accent-info); }
+        .alert-time { font-family: var(--font-din); font-weight: 400; font-size: 11px; color: var(--text-muted); min-width: 45px; }
+        .alert-msg { font-size: 12px; flex: 1; }
+        .alert-tag { font-size: 10px; padding: 1px 4px; background: rgba(255,255,255,0.1); border-radius: 2px; font-weight: 700; }
+
+        .holo-wrapper { position: relative; flex: 1.8; width: 100%; overflow: hidden; background: radial-gradient(circle at center, rgba(78, 147, 147, 0.1) 0%, transparent 80%); border: 1px solid rgba(78, 147, 147, 0.2); min-height: 200px; }
+        #scene-container { width: 100%; height: 100%; transition: filter 0.2s; }
+        
+        .hud-panel { position: absolute; padding: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--primary-dim); backdrop-filter: blur(4px); z-index: 2; pointer-events: none; transition: top 0.3s; }
+        .hud-tl { top: auto; bottom: 10px; left: 230px; border-radius: 4px; border: 1px solid var(--primary-teal); } 
+        .hud-tr { top: 10px; right: 10px; border-top-right-radius: 10px; border-right: 2px solid var(--primary-teal); text-align: right; }
+        .hud-val { font-family: var(--font-din); font-weight: 700; font-size: 22px; color: var(--primary-glow); }
+        .hud-lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 400; }
+
+        /* --- CONTROL PANEL STYLES --- */
+        .globe-controls-panel {
+            position: absolute; top: 10px; left: 10px; z-index: 20; width: 210px; 
+            background: rgba(5, 8, 8, 0.85); border: 1px solid var(--primary-dim); backdrop-filter: blur(8px);
+            border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); max-height: 95%; overflow-y: auto; scrollbar-width: thin;
+        }
+        .ctrl-section { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 2px; }
+        .ctrl-section:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+        .ctrl-title { font-size: 11px; font-weight: 700; color: var(--primary-teal); text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+        
+        .toggle-switch { position: relative; width: 24px; height: 12px; display: inline-block; margin-left: auto; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 12px; }
+        .slider:before { position: absolute; content: ""; height: 8px; width: 8px; left: 2px; bottom: 2px; background-color: #888; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-teal); }
+        input:checked + .slider:before { transform: translateX(12px); background-color: #fff; }
+
+        .ctrl-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #ccc; margin-bottom: 5px; }
+        .ctrl-row label { flex: 1; margin-right: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .control-btn { background: rgba(78, 147, 147, 0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; display: inline-block; text-align: center; width: 100%; transition: 0.2s; }
+        .control-btn:hover { background: var(--primary-teal); color: #000; }
+        input[type=range] { -webkit-appearance: none; width: 80px; height: 3px; background: rgba(255,255,255,0.2); outline: none; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; background: var(--primary-teal); cursor: pointer; border-radius: 50%; }
+        .color-pick { width: 20px; height: 20px; border: 1px solid #fff; border-radius: 3px; overflow: hidden; position: relative; cursor: pointer; }
+        .color-pick input { position: absolute; top: -5px; left: -5px; width: 30px; height: 30px; padding: 0; border: none; cursor: pointer; }
+
+        .trend-summary { display: flex; justify-content: space-around; margin-bottom: 5px; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 4px; }
+        .ts-item { text-align: center; }
+        .ts-v { font-family: var(--font-din); font-weight: 700; font-size: 18px; color: #fff; }
+        .ts-l { font-size: 10px; color: var(--text-muted); }
+
+        .cost-report-container { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        .dense-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        .dense-table th { text-align: left; color: var(--text-muted); font-weight: 400; padding-bottom: 10px; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .dense-table td { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle; }
+        .dense-table tr:last-child td { border-bottom: none; }
+        .rnk { width: 18px; height: 18px; background: #222; text-align: center; line-height: 18px; font-size: 11px; display: inline-block; border-radius: 2px; color: #888; font-weight: 700; }
+        .rnk.top { background: var(--primary-teal); color: #000; }
+
+        .resizer { height: 8px; background: rgba(0,0,0,0.5); width: 100%; cursor: row-resize; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; margin: 4px 0; border-radius: 4px; }
+        .resizer:hover, .resizer.dragging { background: rgba(78, 147, 147, 0.4); box-shadow: 0 0 10px rgba(78, 147, 147, 0.2); }
+        .resizer::after { content: ''; width: 40px; height: 2px; background: var(--text-muted); border-radius: 2px; }
+        .resizer:hover::after { background: #fff; }
+        body.resizing { user-select: none; cursor: row-resize !important; }
+        body.resizing iframe, body.resizing .holo-wrapper { pointer-events: none; }
+        
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand"><i class="fa-solid fa-globe-asia"></i>Global Fleet Operations Center</div>
+        <div class="system-meta"><i class="fa-regular fa-clock" style="margin-right:8px"></i><span id="date-el"></span><span style="width:1px; background:var(--primary-teal); opacity:0.3; margin:0 10px;"></span><span id="time-el" style="color:#fff; font-weight:700;"></span></div>
+    </header>
+
+    <div class="kpi-bar">
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-coins"></i></div><div class="kpi-top"><span class="kpi-value">¥544k</span><span class="kpi-trend trend-down"><i class="fa-solid fa-arrow-trend-down"></i> 2.1%</span></div><div class="kpi-label">Total Expenses</div></div>
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-car-on"></i></div><div class="kpi-top"><span class="kpi-value hl-teal">92.5%</span><span class="kpi-trend trend-up"><i class="fa-solid fa-arrow-trend-up"></i> 1.5%</span></div><div class="kpi-label">Fleet Availability</div></div>
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-route"></i></div><div class="kpi-top"><span class="kpi-value">125k</span><span class="kpi-trend trend-up" style="color:var(--text-muted)">- 0%</span></div><div class="kpi-label">Total Mileage (KM)</div></div>
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-gas-pump"></i></div><div class="kpi-top"><span class="kpi-value">9.8L</span><span class="kpi-trend trend-down"><i class="fa-solid fa-leaf"></i> Good</span></div><div class="kpi-label">Avg Fuel Consumption</div></div>
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-bolt"></i></div><div class="kpi-top"><span class="kpi-value">15¥</span><span class="kpi-trend trend-up" style="color:var(--accent-warn)">+ 0.5%</span></div><div class="kpi-label">Avg Elec Cost /100km</div></div>
+        <div class="kpi-card"><div class="kpi-bg-icon"><i class="fa-solid fa-bell-exclamation"></i></div><div class="kpi-top"><span class="kpi-value" style="color:var(--accent-warn)">04</span><span class="kpi-trend">Alerts</span></div><div class="kpi-label">Pending Actions</div></div>
+    </div>
+
+    <div class="main-content">
+        <div class="col">
+            <div class="card" style="flex: 1;"><div class="card-header"><span><i class="fa-solid fa-chart-pie"></i> Fleet Composition</span></div><div class="pie-layout"><div id="pieChart" class="pie-chart"></div><div class="pie-legend"><div class="legend-item"><span><span class="legend-dot" style="background:#4E9393"></span>Business</span> <b>10</b></div><div class="legend-item"><span><span class="legend-dot" style="background:#777777"></span>Bus</span> <b>05</b></div><div class="legend-item"><span><span class="legend-dot" style="background:#3A6E6E"></span>Sedan</span> <b>03</b></div><div class="legend-item"><span><span class="legend-dot" style="background:#d9775f"></span>Truck</span> <b>02</b></div></div></div></div>
+            <div class="card" style="flex: 1.2;">
+                <div class="card-header"><span><i class="fa-solid fa-bolt"></i> Energy & Eco</span></div>
+                <div class="stat-grid"><div class="mini-stat"><div class="mini-val" style="color:var(--accent-good)">12.5T</div><div class="mini-lbl">CO2 Reduced</div></div><div class="mini-stat"><div class="mini-val">4.5h</div><div class="mini-lbl">Avg Charge Time</div></div></div>
+                <div class="energy-bars">
+                    <div class="eb-row"><div class="eb-header"><span>New Energy (EV/Hybrid)</span> <span>20%</span></div><div class="eb-track"><div class="eb-fill" style="width:20%; background:var(--primary-teal)"></div></div></div>
+                    <div class="eb-row"><div class="eb-header"><span>Combustion (Petrol/Diesel)</span> <span>80%</span></div><div class="eb-track"><div class="eb-fill" style="width:80%; background:var(--accent-warn)"></div></div></div>
+                    <div class="eb-row"><div class="eb-header"><span>Hydrogen Cell</span> <span>15%</span></div><div class="eb-track"><div class="eb-fill" style="width:15%; background:var(--accent-info)"></div></div></div>
+                    <div class="eb-row"><div class="eb-header"><span>Solar Efficiency</span> <span>42%</span></div><div class="eb-track"><div class="eb-fill" style="width:42%; background:#fff"></div></div></div>
+                    <div class="eb-row"><div class="eb-header"><span>Battery Health Avg</span> <span>96%</span></div><div class="eb-track"><div class="eb-fill" style="width:96%; background:var(--accent-gray)"></div></div></div>
+                </div>
+            </div>
+            <div class="card" style="flex: 1.5; min-height: 0;"><div class="card-header"><span><i class="fa-solid fa-bell"></i> Live Alerts</span> <span class="alert-tag">6 New</span></div><div class="alert-list">
+                <div class="alert-item crit"><div class="alert-time">12:05</div><div class="alert-msg">Ins. Expired: <b>B-12546</b></div><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-warn); font-size:12px;"></i></div>
+                <div class="alert-item crit"><div class="alert-time">11:42</div><div class="alert-msg">Engine Overheat: <b>B-65214</b></div><i class="fa-solid fa-fire" style="color:var(--accent-warn); font-size:12px;"></i></div>
+                <div class="alert-item info"><div class="alert-time">10:30</div><div class="alert-msg">Maintenance Scheduled: B-96521</div></div>
+                <div class="alert-item info"><div class="alert-time">09:15</div><div class="alert-msg">Route Deviation: B-16541</div></div>
+                <div class="alert-item info"><div class="alert-time">08:00</div><div class="alert-msg">System Check Complete</div></div>
+                <div class="alert-item info"><div class="alert-time">07:45</div><div class="alert-msg">GPS Signal Lost: B-88888</div></div>
+                <div class="alert-item info"><div class="alert-time">07:30</div><div class="alert-msg">Tire Pressure Low: B-11111</div></div>
+                <div class="alert-item info"><div class="alert-time">07:00</div><div class="alert-msg">Shift Start: Driver Li Si</div></div>
+                <div class="alert-item info"><div class="alert-time">06:55</div><div class="alert-msg">Charging Complete: B-36985</div></div>
+                <div class="alert-item info"><div class="alert-time">06:15</div><div class="alert-msg">Shift End: Driver Wang Wu</div></div>
+            </div></div>
+        </div>
+
+        <div class="col middle-col">
+            <div class="card holo-wrapper" id="top-module">
+                
+                <div class="globe-controls-panel">
+                    
+                    <div class="ctrl-section">
+                        <div class="ctrl-title"><span><i class="fa-solid fa-earth-americas"></i> Map</span><label class="toggle-switch"><input type="checkbox" checked id="toggle-map"><span class="slider"></span></label></div>
+                        <div class="ctrl-row"><label class="control-btn" title="Upload New Map"><i class="fa-solid fa-upload"></i> Upload Image<input type="file" id="tex-upload" hidden accept="image/*"></label></div>
+                        <div class="ctrl-row"><span>Tint</span><div class="color-pick" title="Tint Color"><input type="color" id="tint-color" value="#79b4b4"></div></div>
+                        <div class="ctrl-row"><span>Opacity</span><input type="range" id="earth-opacity" min="0" max="100" value="100"></div>
+                        <div class="ctrl-row"><span>Contrast</span><input type="range" id="contrast-range" min="50" max="200" value="100"></div>
+                        <div class="ctrl-row"><span>Levels</span><input type="range" id="brightness-range" min="50" max="200" value="100"></div>
+                    </div>
+
+                    <div class="ctrl-section">
+                        <div class="ctrl-title"><span><i class="fa-solid fa-border-all"></i> Overlay</span><label class="toggle-switch"><input type="checkbox" checked id="toggle-overlay"><span class="slider"></span></label></div>
+                         <div class="ctrl-row" style="justify-content:flex-start; gap:10px;">
+                            <label style="flex:0; display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="overlayType" value="points" checked> Points</label>
+                            <label style="flex:0; display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="overlayType" value="lines"> Lines</label>
+                        </div>
+                        <div class="ctrl-row"><span>Opacity</span><input type="range" id="overlay-opacity" min="0" max="100" value="30"></div>
+                    </div>
+
+                    <div class="ctrl-section">
+                        <div class="ctrl-title"><span><i class="fa-solid fa-paper-plane"></i> Routes</span><label class="toggle-switch"><input type="checkbox" checked id="toggle-routes"><span class="slider"></span></label></div>
+                        <div class="ctrl-row"><span>Count</span><input type="range" id="fly-count" min="10" max="200" value="30"></div>
+                        <div class="ctrl-row"><span>Base Color</span><div class="color-pick"><input type="color" id="base-line-color" value="#5a6272"></div></div>
+                        <div class="ctrl-row"><span>Start Color</span><div class="color-pick"><input type="color" id="fly-start-color" value="#fdfcfc"></div></div>
+                        <div class="ctrl-row"><span>End Color</span><div class="color-pick"><input type="color" id="fly-end-color" value="#46c8ae"></div></div>
+                         <div class="ctrl-row"><span>Speed</span><input type="range" id="fly-speed" min="1" max="100" value="30"></div>
+                        <div class="ctrl-row"><span>Dot Color</span><div class="color-pick"><input type="color" id="fly-dot-color" value="#b4feef"></div></div>
+                         <div class="ctrl-row"><span>Dot Size</span><input type="range" id="fly-dot-size" min="1" max="100" value="50"></div>
+                    </div>
+
+                    <div class="ctrl-section">
+                        <div class="ctrl-title"><span><i class="fa-solid fa-satellite"></i> Satellites</span><label class="toggle-switch"><input type="checkbox" checked id="toggle-sat"><span class="slider"></span></label></div>
+                        <div class="ctrl-row"><span>Scale</span><input type="range" id="sat-size-range" min="1" max="100" value="20"></div>
+                        <div class="ctrl-row"><span>Sat Color</span><div class="color-pick"><input type="color" id="sat-color" value="#de6f3f"></div></div>
+                         <div class="ctrl-row" style="margin-top:5px; color:var(--primary-teal); font-weight:700;">Orbit Lines</div>
+                         <div class="ctrl-row"><span>Color</span><div class="color-pick"><input type="color" id="orbit-color" value="#4E9393"></div></div>
+                        <div class="ctrl-row"><span>Thick</span><input type="range" id="orbit-thick" min="1" max="50" value="5"></div>
+                         <div class="ctrl-row"><span>Opacity</span><input type="range" id="orbit-opacity" min="0" max="100" value="15"></div>
+                    </div>
+
+                    <div class="ctrl-section">
+                        <div class="ctrl-title"><i class="fa-solid fa-magnifying-glass"></i> View</div>
+                        <div class="ctrl-row"><span>Zoom</span><input type="range" id="globe-scale-range" min="50" max="150" value="100"></div>
+                    </div>
+
+                </div>
+
+                <div id="scene-container"></div>
+                <div style="position:absolute; bottom:20px; width:100%; text-align:center; pointer-events:none; z-index:3;"><div style="font-family:'Barlow'; font-weight:700; color:var(--primary-glow); letter-spacing:4px; font-size:14px; text-shadow:0 0 10px var(--primary-teal);">GLOBAL TELEMETRY</div></div>
+            </div>
+
+            <div class="resizer" id="drag-handle"></div>
+
+            <div class="card" id="bottom-module" style="flex: 1; min-height: 150px;">
+                <div class="card-header"><span><i class="fa-solid fa-chart-line"></i> Expense Analysis</span><div class="chart-tabs"><div class="tab-btn active" onclick="switchChartType('line')" id="btn-line">Line</div><div class="tab-btn" onclick="switchChartType('bar')" id="btn-bar">Bar</div></div></div>
+                <div class="trend-summary"><div class="ts-item"><div class="ts-v">¥9.2k</div><div class="ts-l">Highest</div></div><div class="ts-item"><div class="ts-v">¥4.1k</div><div class="ts-l">Lowest</div></div><div class="ts-item"><div class="ts-v" style="color:var(--primary-teal)">¥6.8k</div><div class="ts-l">Average</div></div></div>
+                <div style="flex:1; width:100%; min-height: 0; position:relative;"><div id="lineChart" style="width:100%; height:100%;"></div></div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card" style="flex: 1;"><div class="card-header"><span><i class="fa-solid fa-trophy"></i> Top Mileage & Efficiency</span></div><div id="barChart" style="height:140px; width:100%;"></div>
+                <table class="dense-table" style="margin-top:5px;">
+                    <thead><tr><th>Rank</th><th>Driver</th><th>Score</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="rnk top">1</span></td><td>Zhang San</td><td style="color:var(--accent-good); font-weight:700;">9.8</td></tr>
+                        <tr><td><span class="rnk top">2</span></td><td>Li Si</td><td style="color:var(--accent-good); font-weight:700;">9.6</td></tr>
+                        <tr><td><span class="rnk top">3</span></td><td>Wang Wu</td><td style="color:#d9775f; font-weight:700;">8.9</td></tr>
+                        <tr><td><span class="rnk">4</span></td><td>Zhao Liu</td><td style="color:var(--primary-teal); font-weight:700;">8.5</td></tr>
+                        <tr><td><span class="rnk">5</span></td><td>Sun Qi</td><td style="color:var(--primary-teal); font-weight:700;">8.2</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card" style="flex: 1.5;"><div class="card-header"><span><i class="fa-solid fa-file-invoice-dollar"></i> Cost Report</span><select style="background:#000; color:#fff; border:1px solid #333; font-size:10px; font-family:'Barlow';"><option>This Month</option></select></div>
+            <div class="cost-report-container" style="overflow-y:auto;">
+                <table class="dense-table">
+                    <thead><tr><th>#</th><th>Plate No.</th><th>Type</th><th style="text-align:right">Cost</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="rnk top">1</span></td><td>B-12546</td><td><span style="color:var(--accent-warn)">Maint.</span></td><td style="text-align:right; font-weight:700;">¥ 9,532</td></tr>
+                        <tr><td><span class="rnk top">2</span></td><td>B-65214</td><td><span style="color:var(--accent-warn)">Maint.</span></td><td style="text-align:right; font-weight:700;">¥ 7,512</td></tr>
+                        <tr><td><span class="rnk top">3</span></td><td>B-96521</td><td><span style="color:var(--primary-teal)">Fuel</span></td><td style="text-align:right; font-weight:700;">¥ 6,254</td></tr>
+                        <tr><td><span class="rnk">4</span></td><td>B-16541</td><td><span style="color:var(--primary-teal)">Fuel</span></td><td style="text-align:right; font-weight:700;">¥ 4,215</td></tr>
+                        <tr><td><span class="rnk">5</span></td><td>B-36985</td><td><span style="color:var(--accent-info)">Elec</span></td><td style="text-align:right; font-weight:700;">¥ 3,251</td></tr>
+                        <tr><td><span class="rnk">6</span></td><td>B-88888</td><td><span style="color:var(--accent-info)">Elec</span></td><td style="text-align:right; font-weight:700;">¥ 2,100</td></tr>
+                        <tr><td><span class="rnk">7</span></td><td>B-11111</td><td><span style="color:var(--primary-teal)">Fuel</span></td><td style="text-align:right; font-weight:700;">¥ 1,200</td></tr>
+                        <tr><td><span class="rnk">8</span></td><td>B-22222</td><td><span style="color:var(--primary-teal)">Fuel</span></td><td style="text-align:right; font-weight:700;">¥ 1,150</td></tr>
+                        <tr><td><span class="rnk">9</span></td><td>B-33333</td><td><span style="color:var(--accent-info)">Elec</span></td><td style="text-align:right; font-weight:700;">¥ 980</td></tr>
+                        <tr><td><span class="rnk">10</span></td><td>B-44444</td><td><span style="color:var(--accent-warn)">Maint.</span></td><td style="text-align:right; font-weight:700;">¥ 850</td></tr>
+                        <tr><td><span class="rnk">11</span></td><td>B-55555</td><td><span style="color:var(--primary-teal)">Fuel</span></td><td style="text-align:right; font-weight:700;">¥ 720</td></tr>
+                    </tbody>
+                </table>
+            </div></div>
+        </div>
+
+    </div>
+
+    <script>
+        const THEME = { teal: '#4E9393', warn: '#d9775f', info: '#4facfe', gray: '#777777', bg: '#050808' };
+        const chartFont = "'Barlow', sans-serif";
+        const darkTooltip = { trigger: 'axis', backgroundColor: 'rgba(12, 16, 16, 0.95)', borderColor: '#4E9393', borderWidth: 1, textStyle: { color: '#e0e0e0', fontFamily: chartFont } };
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time-el').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+            document.getElementById('date-el').innerText = now.toISOString().split('T')[0];
+        }, 1000);
+
+        function initThreeJS() {
+            const container = document.getElementById('scene-container');
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050808, 0.02);
+
+            const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 2, 7.5); 
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.autoRotate = false; controls.enableZoom = true; controls.enablePan = false;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(5, 5, 5); scene.add(dl);
+            const pl = new THREE.PointLight(0x6affff, 2, 20); pl.position.set(-5, 3, 5); scene.add(pl);
+
+            const starGroup = new THREE.Group(); scene.add(starGroup);
+            const particlesGeo = new THREE.BufferGeometry();
+            const particlesCount = 1200;
+            const posArray = new Float32Array(particlesCount * 3);
+            for(let i = 0; i < particlesCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 30; 
+            particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particlesMat = new THREE.PointsMaterial({ size: 0.05, color: 0x6affff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+            const starField = new THREE.Points(particlesGeo, particlesMat);
+            starGroup.add(starField);
+
+            const globeGroup = new THREE.Group(); scene.add(globeGroup);
+            const textureLoader = new THREE.TextureLoader();
+            const earthTexture = textureLoader.load('Frame 4.jpg');
+
+            const earthGeo = new THREE.SphereGeometry(2.2, 64, 64);
+            // Default Tint applied (mix with updated color #79b4b4)
+            const earthMat = new THREE.MeshLambertMaterial({ map: earthTexture, color: 0x79b4b4, transparent: true, opacity: 1 });
+            const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+            globeGroup.add(earthMesh);
+
+            const overlayGroup = new THREE.Group(); globeGroup.add(overlayGroup);
+            const pointGeo = new THREE.SphereGeometry(2.21, 64, 64);
+            const pointMat = new THREE.PointsMaterial({ color: 0x4E9393, size: 0.02, transparent: true, opacity: 0.3 });
+            const earthPoints = new THREE.Points(pointGeo, pointMat);
+            overlayGroup.add(earthPoints);
+            const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(2.21, 32, 32));
+            const wireMat = new THREE.LineBasicMaterial({ color: 0x4E9393, transparent: true, opacity: 0.3 });
+            const earthLines = new THREE.LineSegments(wireGeo, wireMat);
+            earthLines.visible = false; overlayGroup.add(earthLines);
+
+            // --- FLYING LINES (Fixed Logic) ---
+            const flyLineGroup = new THREE.Group();
+            globeGroup.add(flyLineGroup);
+            
+            // Default Base: #5a6272
+            const baseLineMat = new THREE.LineBasicMaterial({ color: 0x5a6272, transparent: true, opacity: 0.4 });
+            
+            const flowShaderMat = new THREE.ShaderMaterial({
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+                uniforms: {
+                    time: { value: 0 },
+                    // Default Start: #fdfcfc
+                    colorStart: { value: new THREE.Color(0xfdfcfc) },
+                    // Default End: #46c8ae
+                    colorEnd: { value: new THREE.Color(0x46c8ae) },
+                    speed: { value: 0.5 },
+                },
+                vertexShader: `
+                    varying float vProgress;
+                    void main() {
+                        vProgress = uv.x; // Tube geometry maps U along the tube length
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float time;
+                    uniform vec3 colorStart;
+                    uniform vec3 colorEnd;
+                    uniform float speed;
+                    varying float vProgress;
+                    void main() {
+                        float t = fract(time * speed);
+                        float trailLength = 0.2; 
+                        
+                        float visible = 0.0;
+                        if (vProgress <= t && vProgress > t - trailLength) {
+                            visible = 1.0 - (t - vProgress) / trailLength;
+                        }
+                        if (t < trailLength && vProgress > 1.0 - (trailLength - t)) {
+                             visible = 1.0 - (1.0 - vProgress + t) / trailLength;
+                        }
+
+                        if (visible < 0.01) discard;
+
+                        vec3 finalColor = mix(colorStart, colorEnd, visible);
+                        gl_FragColor = vec4(finalColor, visible);
+                    }
+                `
+            });
+            
+            // Default Dot: #b4feef
+            const rippleMat = new THREE.MeshBasicMaterial({ color: 0xb4feef, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+            let activeRipples = [];
+            let flowMeshes = [];
+
+            function initFlyLines(count) {
+                while(flyLineGroup.children.length > 0){ flyLineGroup.remove(flyLineGroup.children[0]); }
+                activeRipples = [];
+                flowMeshes = [];
+
+                for(let i=0; i<count; i++) {
+                    const lat1 = (Math.random() * 140) - 70;
+                    const lon1 = (Math.random() * 360) - 180;
+                    const lat2 = (Math.random() * 140) - 70;
+                    const lon2 = (Math.random() * 360) - 180;
+                    
+                    const s = latLonToVector3(lat1, lon1, 2.2);
+                    const e = latLonToVector3(lat2, lon2, 2.2);
+                    const curve = getCurve(s, e);
+
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(50));
+                    const line = new THREE.Line(lineGeo, baseLineMat);
+                    flyLineGroup.add(line);
+
+                    const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.005, 3, false);
+                    const flowMesh = new THREE.Mesh(tubeGeo, flowShaderMat.clone());
+                    flowMesh.material.uniforms.time.value = Math.random() * 10;
+                    flowMesh.material.uniforms.speed.value = 0.3 + Math.random() * 0.4;
+                    // Reset to current color panel values
+                    flowMesh.material.uniforms.colorStart.value.set(document.getElementById('fly-start-color').value);
+                    flowMesh.material.uniforms.colorEnd.value.set(document.getElementById('fly-end-color').value);
+                    
+                    flyLineGroup.add(flowMesh);
+                    flowMeshes.push(flowMesh);
+
+                    const ripGeo = new THREE.RingGeometry(0.01, 0.04, 16);
+                    const r1 = new THREE.Mesh(ripGeo, rippleMat.clone());
+                    r1.position.copy(s); r1.lookAt(0,0,0);
+                    const r2 = new THREE.Mesh(ripGeo, rippleMat.clone());
+                    r2.position.copy(e); r2.lookAt(0,0,0);
+                    flyLineGroup.add(r1); flyLineGroup.add(r2);
+                    activeRipples.push({mesh:r1, t:Math.random()}, {mesh:r2, t:Math.random()});
+                }
+            }
+
+            function latLonToVector3(lat, lon, radius) {
+                const phi = (90 - lat) * (Math.PI / 180);
+                const theta = (lon + 180) * (Math.PI / 180);
+                const x = -(radius * Math.sin(phi) * Math.cos(theta));
+                const z = (radius * Math.sin(phi) * Math.sin(theta));
+                const y = (radius * Math.cos(phi));
+                return new THREE.Vector3(x, y, z);
+            }
+
+            function getCurve(p1, p2) {
+                const v1 = new THREE.Vector3(p1.x, p1.y, p1.z);
+                const v2 = new THREE.Vector3(p2.x, p2.y, p2.z);
+                const points = [];
+                const dist = v1.distanceTo(v2);
+                for (let i = 0; i <= 20; i++) {
+                    const p = new THREE.Vector3().lerpVectors(v1, v2, i / 20);
+                    p.normalize().multiplyScalar(2.2 + (dist * 0.25) * Math.sin(Math.PI * i / 20));
+                    points.push(p);
+                }
+                return new THREE.CatmullRomCurve3(points);
+            }
+
+            initFlyLines(30);
+
+
+            // --- SATELLITE SYSTEM ---
+            const satGroup = new THREE.Group(); scene.add(satGroup);
+            const orbitMeshes = [];
+
+            function createDetailedSatelliteModel() {
+                const group = new THREE.Group(); group.userData = { isSatelliteModel: true };
+                // Default Satellite: #de6f3f (orange) for BOTH body and panels
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xde6f3f }); 
+                const panelMat = new THREE.MeshStandardMaterial({ color: 0xde6f3f });
+                
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 6), bodyMat);
+                body.rotation.z = Math.PI/2; group.add(body);
+                const pGeo = new THREE.BoxGeometry(0.9, 0.02, 0.3);
+                const lp = new THREE.Mesh(pGeo, panelMat); lp.position.x = -0.65; group.add(lp);
+                const rp = new THREE.Mesh(pGeo, panelMat); rp.position.x = 0.65; group.add(rp);
+                group.scale.set(0.2, 0.2, 0.2); // Reduced scale to 0.2 (half of 0.4)
+                return group;
+            }
+
+            function createSatellite(radius, speed, inclX, inclZ) {
+                const orbitGroup = new THREE.Group(); orbitGroup.userData = { speed: speed };
+                const orbitGeo = new THREE.TorusGeometry(radius, 0.005, 64, 4);
+                const orbitMat = new THREE.MeshBasicMaterial({ color: 0x4E9393, transparent: true, opacity: 0.15 });
+                const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
+                orbitMesh.rotation.x = Math.PI / 2; orbitGroup.add(orbitMesh); orbitMeshes.push(orbitMesh);
+                const sat = createDetailedSatelliteModel();
+                sat.position.set(radius, 0, 0); sat.lookAt(0,0,0); sat.rotateX(Math.PI/2); sat.rotateY(Math.PI/2);
+                orbitGroup.add(sat);
+                orbitGroup.rotation.x = inclX; orbitGroup.rotation.z = inclZ; satGroup.add(orbitGroup);
+            }
+            createSatellite(3.0, 0.008, Math.PI/4, Math.PI/6);
+            createSatellite(3.5, -0.006, -Math.PI/3, 0);
+            createSatellite(2.8, 0.012, Math.PI/6, -Math.PI/4);
+
+
+            // --- UI CONTROL LOGIC ---
+
+            // Texture
+            document.getElementById('tex-upload').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if(file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const img = new Image(); img.src = ev.target.result;
+                        img.onload = () => { const newTex = new THREE.Texture(img); newTex.needsUpdate = true; earthMesh.material.map = newTex; earthMesh.material.needsUpdate = true; }
+                    }; reader.readAsDataURL(file);
+                }
+            });
+            document.getElementById('toggle-map').addEventListener('change', (e) => { earthMesh.visible = e.target.checked; });
+            document.getElementById('earth-opacity').addEventListener('input', (e) => { earthMesh.material.opacity = e.target.value / 100; });
+            document.getElementById('tint-color').addEventListener('input', (e) => { earthMesh.material.color.set(e.target.value); });
+            const contrastInput = document.getElementById('contrast-range');
+            const brightnessInput = document.getElementById('brightness-range');
+            function updateFilters() { renderer.domElement.style.filter = `contrast(${contrastInput.value/100}) brightness(${brightnessInput.value/100})`; }
+            contrastInput.addEventListener('input', updateFilters); brightnessInput.addEventListener('input', updateFilters);
+
+            // Overlay
+            const toggleOverlay = document.getElementById('toggle-overlay');
+            const overlayOp = document.getElementById('overlay-opacity');
+            function updateOverlay() {
+                if(!toggleOverlay.checked) { earthPoints.visible = false; earthLines.visible = false; return; }
+                const isPoints = document.querySelector('input[name="overlayType"]:checked').value === 'points';
+                earthPoints.visible = isPoints; earthLines.visible = !isPoints;
+                earthPoints.material.opacity = overlayOp.value / 100; earthLines.material.opacity = overlayOp.value / 100;
+            }
+            toggleOverlay.addEventListener('change', updateOverlay); overlayOp.addEventListener('input', updateOverlay);
+            document.getElementsByName('overlayType').forEach(r => r.addEventListener('change', updateOverlay));
+
+            // Fly Lines
+            document.getElementById('toggle-routes').addEventListener('change', (e) => { flyLineGroup.visible = e.target.checked; });
+            
+            // Re-generate lines on count change
+            document.getElementById('fly-count').addEventListener('change', (e) => {
+                initFlyLines(parseInt(e.target.value));
+            });
+            
+            document.getElementById('base-line-color').addEventListener('input', (e) => {
+                baseLineMat.color.set(e.target.value);
+            });
+
+            document.getElementById('fly-start-color').addEventListener('input', (e) => {
+                const c = new THREE.Color(e.target.value);
+                flowMeshes.forEach(m => m.material.uniforms.colorStart.value = c);
+            });
+            document.getElementById('fly-end-color').addEventListener('input', (e) => {
+                const c = new THREE.Color(e.target.value);
+                flowMeshes.forEach(m => m.material.uniforms.colorEnd.value = c);
+            });
+            
+            document.getElementById('fly-speed').addEventListener('input', (e) => {
+                const s = e.target.value / 100;
+                flowMeshes.forEach(m => m.material.uniforms.speed.value = s);
+            });
+            document.getElementById('fly-dot-color').addEventListener('input', (e) => {
+                const c = new THREE.Color(e.target.value);
+                activeRipples.forEach(r => r.mesh.material.color = c);
+            });
+            document.getElementById('fly-dot-size').addEventListener('input', (e) => {
+                const s = e.target.value / 50;
+                activeRipples.forEach(r => r.mesh.userData.baseScale = s);
+            });
+
+            // Satellites
+            document.getElementById('toggle-sat').addEventListener('change', (e) => { satGroup.visible = e.target.checked; });
+            document.getElementById('sat-size-range').addEventListener('input', (e) => {
+                const val = e.target.value / 100;
+                satGroup.children.forEach(orbit => { orbit.children.forEach(child => { if(child.userData && child.userData.isSatelliteModel) child.scale.set(val, val, val); }); });
+            });
+            document.getElementById('sat-color').addEventListener('input', (e) => {
+                const hex = e.target.value;
+                satGroup.children.forEach(orbit => { orbit.children.forEach(child => { 
+                    if(child.userData && child.userData.isSatelliteModel) child.traverse(p => { if(p.isMesh) p.material.color.set(hex); }); 
+                }); });
+            });
+            document.getElementById('orbit-color').addEventListener('input', (e) => { orbitMeshes.forEach(m => m.material.color.set(e.target.value)); });
+            document.getElementById('orbit-opacity').addEventListener('input', (e) => { orbitMeshes.forEach(m => m.material.opacity = e.target.value / 100); });
+            document.getElementById('orbit-thick').addEventListener('input', (e) => { const s = e.target.value / 5; orbitMeshes.forEach(m => m.scale.set(1, 1, s)); });
+
+            document.getElementById('globe-scale-range').addEventListener('input', (e) => { const s = e.target.value / 100; globeGroup.scale.set(s, s, s); });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                globeGroup.rotation.y += 0.001; starGroup.rotation.y -= 0.0002;
+                satGroup.children.forEach(orbit => { orbit.rotateY(orbit.userData.speed); });
+
+                const delta = 0.01;
+                flowMeshes.forEach(m => { m.material.uniforms.time.value += delta; });
+
+                activeRipples.forEach(r => {
+                    r.t += 0.01; if(r.t > 1) r.t = 0;
+                    const baseS = r.mesh.userData.baseScale || 1;
+                    const s = (1 + r.t * 3) * baseS;
+                    r.mesh.scale.set(s, s, s); r.mesh.material.opacity = (1 - r.t) * 0.8;
+                });
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            const resizeObserver = new ResizeObserver(() => {
+                const w = container.clientWidth; const h = container.clientHeight;
+                if(w && h) { renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+            });
+            resizeObserver.observe(container);
+        }
+        initThreeJS();
+
+        // ECharts
+        const pieChart = echarts.init(document.getElementById('pieChart'));
+        // Updated Radius per request + Tooltip
+        pieChart.setOption({ 
+            tooltip: { trigger: 'item', backgroundColor: 'rgba(12, 16, 16, 0.95)', borderColor: '#4E9393', borderWidth: 1, textStyle: { color: '#e0e0e0', fontFamily: chartFont } },
+            series: [{ type: 'pie', radius: ['60%', '75%'], center: ['50%', '50%'], label: { show: false }, data: [{value:10, itemStyle:{color:THEME.teal}}, {value:5, itemStyle:{color:THEME.gray}}, {value:3, itemStyle:{color:'#3A6E6E'}}, {value:2, itemStyle:{color:THEME.warn}}] }] 
+        });
+        
+        const barChart = echarts.init(document.getElementById('barChart'));
+        // Updated with thinner bars + Tooltip
+        barChart.setOption({ 
+            tooltip: darkTooltip,
+            grid: { top: 20, bottom: 20, left: 0, right: 0 }, xAxis: { type: 'category', show: false }, yAxis: { show: false }, 
+            series: [{ 
+                type: 'bar', barWidth: 8, 
+                data: [125, 98, 76, 65, 50], // 5 entries
+                itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:THEME.teal},{offset:1,color:'#000'}]) } 
+            }] 
+        });
+        
+        const expenseChart = echarts.init(document.getElementById('lineChart'));
+        // Default to Bar, removed tabs + Tooltip
+        const barGroupOption = { 
+            tooltip: darkTooltip,
+            grid: { top: 10, bottom: 20, left: 30, right: 10 }, xAxis: { type: 'category', data: ['Mar','Apr','May','Jun','Jul','Aug'], axisLine: {lineStyle:{color:'#333'}} }, yAxis: { type: 'value', splitLine: {lineStyle:{color:'#222'}} }, 
+            series: [{ name: 'Fuel', type: 'bar', barWidth: '10%', data: [820, 932, 901, 934, 1290, 1330], itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: THEME.teal }, { offset: 1, color: 'rgba(5, 8, 8, 0.3)' }]) } }, { name: 'Maint', type: 'bar', barWidth: '10%', data: [620, 712, 601, 534, 890, 930], itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: THEME.warn }, { offset: 1, color: 'rgba(5, 8, 8, 0.3)' }]) } }] 
+        };
+        expenseChart.setOption(barGroupOption);
+        
+        window.addEventListener('resize', () => { pieChart.resize(); expenseChart.resize(); barChart.resize(); });
+
+        const resizer = document.getElementById('drag-handle');
+        const topModule = document.getElementById('top-module');
+        let isResizing = false, startY = 0, startHeight = 0;
+        resizer.addEventListener('mousedown', (e) => { isResizing=true; startY=e.clientY; startHeight=topModule.clientHeight; document.body.classList.add('resizing'); document.addEventListener('mousemove', onDrag); document.addEventListener('mouseup', stopDrag); });
+        function onDrag(e) { if(isResizing) { topModule.style.height = (startHeight + (e.clientY - startY)) + 'px'; topModule.style.flex = 'none'; } }
+        function stopDrag() { isResizing=false; document.body.classList.remove('resizing'); document.removeEventListener('mousemove', onDrag); expenseChart.resize(); }
+        new ResizeObserver(() => expenseChart.resize()).observe(document.getElementById('lineChart'));
+    </script>
+</body>
+</html>
